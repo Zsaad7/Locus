@@ -1,5 +1,7 @@
 # Locus
 
+// check
+
 **Gestion d'équipe pour station-service, où l'accès est lié au lieu.**
 
 Locus est une application web qui permet aux gérants de piloter leur station et à leurs salariés de pointer, consulter leurs informations et suivre leurs tâches — avec une règle centrale : **un salarié ne peut se connecter que depuis la station**, tandis qu'un responsable accède à l'application de n'importe où. Le produit est pensé pour accueillir plusieurs services au fil du temps sans réécriture.
