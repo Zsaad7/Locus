@@ -3,10 +3,13 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Tasks from './pages/Tasks'
+import ProductionPage from './pages/responsable/production/production'
+import PertePage from './pages/responsable/perte/perte'
+import ProfileCreation from './pages/responsable/creation/profile'
 
 const AppInner: React.FC = () => {
-  const { session, loading } = useAuth()
-  const [tab, setTab] = useState<'dashboard'|'tasks'>('dashboard')
+  const { session, loading, signOut } = useAuth()
+  const [tab, setTab] = useState<'dashboard'|'tasks'|'production'|'perte'|'profile'>('dashboard')
 
   if (loading) {
     return (
@@ -26,11 +29,24 @@ const AppInner: React.FC = () => {
           <div>Locus <div className="small">l'accès, ancré au lieu</div></div>
         </div>
         <nav style={{display:'flex',gap:8}}>
-          <button className={`btn-ghost ${tab==='dashboard'?'ring-2 ring-brand':''}`} onClick={() => setTab('dashboard')}>Tableau de bord</button>
-          <button className={`btn-ghost ${tab==='tasks'?'ring-2 ring-brand':''}`} onClick={() => setTab('tasks')}>Tâches</button>
+          {/* <button className={`btn-ghost ${tab==='dashboard'?'ring-2 ring-brand':''}`} onClick={() => setTab('dashboard')}>Tableau de bord</button> */}
+          {/* <button className={`btn-ghost ${tab==='tasks'?'ring-2 ring-brand':''}`} onClick={() => setTab('tasks')}>Tâches</button> */}
+          <button className="btn-ghost" onClick={signOut}>Déconnexion</button>
+          <button className="btn-ghost" onClick={() => setTab('production')}>Production</button>
+          <button className="btn-ghost" onClick={() => setTab('perte')}>Pertes</button>
+          <button className="btn-ghost" onClick={() => setTab('profile')}>Créer profil</button>
+          <div className="action-icons">
+                <button type="button" className="icon-btn" aria-label="Messages">✉</button>
+                <button type="button" className="icon-btn" aria-label="Profil">P</button>
+          </div>
+
         </nav>
       </header>
-      {tab === 'dashboard' ? <Dashboard /> : <Tasks />}
+      {tab === 'dashboard' && <Dashboard />}
+      {tab === 'tasks' && <Tasks />}
+      {tab === 'production' && <ProductionPage />}
+      {tab === 'perte' && <PertePage />}
+      {tab === 'profile' && <ProfileCreation />}
     </div>
   )
 }

@@ -1,31 +1,75 @@
 import React, { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 type PersonalTaskValue = 'yes' | 'no' | null
 
+type Task = {
+  id: number
+  title?: string
+  description?: string
+  scope?: string
+  type?: string
+}
+
 const Dashboard: React.FC = () => {
-  const { profile, station, refreshStationIp, signOut } = useAuth()
+  const { profile, station, refreshStationIp } = useAuth()
   const [attendanceOpen, setAttendanceOpen] = useState<any | null>(null)
   const [warnings, setWarnings] = useState<any[]>([])
-  const [commonTasks, setCommonTasks] = useState<Record<string, boolean>>({
-    'Vérifier les messages': false,
-    'Préparer l’ouverture': false,
-    'Contrôler les stocks': false,
-  })
-  const [personalTasks, setPersonalTasks] = useState<Record<string, PersonalTaskValue>>({
-    'Rappeler le client': null,
-    'Finaliser le rapport': null,
-  })
+  const [commonTasks, setCommonTasks] = useState<Task[]>([])
+  const [personalTasks, setPersonalTasks] = useState<Task[]>([])
+  const [checkedTasks, setCheckedTasks] = useState<Record<number, boolean>>({})
+  const [personalAnswers, setPersonalAnswers] = useState<Record<number, PersonalTaskValue>>({})
 
   useEffect(() => {
     async function load() {
       if (!profile) return
-      const { data } = await supabase.from('attendance').select('*').eq('user_id', profile.id)
-      setAttendanceOpen(data?.find((a: any) => !a.clock_out) ?? null)
-      const { data: w } = await supabase.from('warnings').select('*').eq('user_id', profile.id)
-      setWarnings(w || [])
+
+      // 1. Pointage
+      const { data: attendanceData, error: attErr } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', profile.id)
+
+      if (attErr) console.error('Erreur Attendance:', attErr)
+      else setAttendanceOpen((attendanceData || []).find((a) => !a.clock_out) ?? null)
+
+      // 2. Avertissements
+      const { data: warningsData, error: warnErr } = await supabase
+        .from('warnings')
+        .select('*')
+        .eq('user_id', profile.id)
+
+      if (warnErr) console.error('Erreur Warnings:', warnErr)
+      else setWarnings(warningsData || [])
+
+      // 3. Tâches
+      const { data: tasksData, error: taskErr } = await supabase
+        .from('tasks')
+        .select('*')
+
+      if (taskErr) {
+        console.error('Erreur Tasks:', taskErr)
+      } else {
+        const tasks = tasksData || []
+        console.log('Données brutes reçues pour TASKS :', tasks)
+
+        setCommonTasks(
+          tasks.filter((t: any) => {
+            const s = String(t.scope || t.type || '').toLowerCase()
+            return s.includes('commun') || s.includes('common')
+          })
+        )
+
+        setPersonalTasks(
+          tasks.filter((t: any) => {
+            const s = String(t.scope || t.type || '').toLowerCase()
+            return s.includes('spécifiques') || s.includes('perso') || s.includes('priv')
+          })
+        )
+      }
     }
+
     load()
   }, [profile])
 
@@ -40,14 +84,14 @@ const Dashboard: React.FC = () => {
     setAttendanceOpen(data?.find((a: any) => !a.clock_out) ?? null)
   }
 
-  const toggleCommonTask = (task: string) => {
-    setCommonTasks((prev) => ({ ...prev, [task]: !prev[task] }))
+  const toggleCommonTask = (taskId: number) => {
+    setCheckedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }))
   }
 
-  const togglePersonalTask = (task: string, value: PersonalTaskValue) => {
-    setPersonalTasks((prev) => ({
+  const togglePersonalTask = (taskId: number, value: PersonalTaskValue) => {
+    setPersonalAnswers((prev) => ({
       ...prev,
-      [task]: prev[task] === value ? null : value,
+      [taskId]: prev[taskId] === value ? null : value,
     }))
   }
 
@@ -72,17 +116,14 @@ const Dashboard: React.FC = () => {
           <div style={{ fontSize: 18, fontWeight: 600 }}>{profile?.full_name}</div>
           <div className="small">{profile?.role} — {profile?.shift}</div>
         </div>
-        <div>
-          <button className="btn-ghost" onClick={signOut}>Déconnexion</button>
-        </div>
       </div>
 
       <div className="dashboard-shell">
-        <div className="info-row">
+         <div className="info-row">
           <div className="card info-card">
             <div className="info-p-header">
               <div>
-                <div className="small">Info P</div>
+                <div className="small">Information Personnelle</div>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>{firstName}</div>
               </div>
               <div className="info-p-pill">{profile?.points ?? 0} pts</div>
@@ -96,21 +137,12 @@ const Dashboard: React.FC = () => {
 
           <div className="card info-card">
             <div className="section-header">
-              <h3 style={{ marginTop: 0, marginBottom: 0 }}>POINTAGE</h3>
+              <h3 className="small">Pointage</h3>
               <button className="btn-primary compact-btn" onClick={toggleAttendance}>
                 {attendanceOpen ? 'Pointage sortie' : 'Pointage entrée'}
               </button>
             </div>
             <div className="attendance-history">
-              <div className="attendance-row">
-                <span>Hier</span>
-                <div>
-                  <strong>Entrée</strong> <span>--</span>
-                </div>
-                <div>
-                  <strong>Sortie</strong> <span>--</span>
-                </div>
-              </div>
               <div className="attendance-row">
                 <span>Aujourd'hui</span>
                 <div>
@@ -124,7 +156,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="card info-card">
-            <h3 style={{ marginTop: 0 }}>Station</h3>
+            <h3 className="small">Station</h3>
             <div className="station-block">
               <div>
                 <div style={{ fontWeight: 600 }}>{station?.name ?? 'Aucune'}</div>
@@ -138,72 +170,80 @@ const Dashboard: React.FC = () => {
 
           <div className="card info-card warnings-card">
             <div className="section-header">
-              <h3 style={{ marginTop: 0, marginBottom: 0 }}>AVERTISSEMENT</h3>
-              <div className="action-icons">
-                <button type="button" className="icon-btn" aria-label="Messages">✉</button>
-                <button type="button" className="icon-btn" aria-label="Profil">P</button>
-              </div>
+              <h3 className="small">Avertissements</h3>
             </div>
             {warnings.length === 0 ? (
               <div className="empty-warning">
                 <div className="empty-warning-icon">i</div>
                 <div className="small">Aucun avertissement</div>
               </div>
-            ) : warnings.map((w) => (
-              <div key={w.id} className="warning-row">
-                <div>{w.reason}</div>
-                <div className={`badge ${w.severity === 'danger' ? 'badge-danger' : w.severity === 'warning' ? 'badge-warning' : 'badge-info'}`}>
-                  {w.severity}
+            ) : (
+              warnings.map((w) => (
+                <div key={w.id} className="warning-row">
+                  <div>{w.reason}</div>
+                  <div className={`badge ${w.severity === 'danger' ? 'badge-danger' : w.severity === 'warning' ? 'badge-warning' : 'badge-info'}`}>
+                    {w.severity}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="tasks-area">
           <div className="card task-section">
-            <h3 style={{ marginTop: 0 }}>TACHES Commune</h3>
+            <h3 style={{ marginTop: 0 }}>Tâches Communes</h3>
             <div className="task-list">
-              {Object.entries(commonTasks).map(([task, checked]) => (
-                <label key={task} className="task-row">
-                  <span>{task}</span>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleCommonTask(task)}
-                  />
-                </label>
-              ))}
+              {commonTasks.length === 0 ? (
+                <div className="small">Aucune tâche commune</div>
+              ) : (
+                commonTasks.map((task) => (
+                  <label key={task.id} className="task-row">
+                    <span>{task.title || task.description}</span>
+                    <input
+                      type="checkbox"
+                      checked={!!checkedTasks[task.id]}
+                      onChange={() => toggleCommonTask(task.id)}
+                    />
+                  </label>
+                ))
+              )}
             </div>
           </div>
 
           <div className="card task-section">
-            <h3 style={{ marginTop: 0 }}>TACHES Personnel</h3>
+            <h3 style={{ marginTop: 0 }}>Tâches Spécifiques</h3>
             <div className="task-list">
-              {Object.entries(personalTasks).map(([task, value]) => (
-                <div key={task} className="task-row task-row-personal">
-                  <span>{task}</span>
-                  <div className="task-options">
-                    <button
-                      type="button"
-                      className={`task-chip ${value === 'yes' ? 'task-chip-active' : ''}`}
-                      onClick={() => togglePersonalTask(task, 'yes')}
-                    >
-                      Oui
-                    </button>
-                    <button
-                      type="button"
-                      className={`task-chip ${value === 'no' ? 'task-chip-active' : ''}`}
-                      onClick={() => togglePersonalTask(task, 'no')}
-                    >
-                      Non
-                    </button>
+              {personalTasks.length === 0 ? (
+                <div className="small">Aucune tâche spécifique</div>
+              ) : (
+                personalTasks.map((task) => (
+                  <div key={task.id} className="task-row task-row-personal">
+                    <span>{task.title || task.description}</span>
+                    <div className="task-options">
+                      <button
+                        type="button"
+                        className={`task-chip ${personalAnswers[task.id] === 'yes' ? 'task-chip-active' : ''}`}
+                        onClick={() => togglePersonalTask(task.id, 'yes')}
+                      >
+                        Oui
+                      </button>
+                      <button
+                        type="button"
+                        className={`task-chip ${personalAnswers[task.id] === 'no' ? 'task-chip-active' : ''}`}
+                        onClick={() => togglePersonalTask(task.id, 'no')}
+                      >
+                        Non
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
+
+       
       </div>
     </div>
   )
