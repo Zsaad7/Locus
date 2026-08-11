@@ -1,0 +1,53 @@
+
+:root{
+	--brand: #0F6E56;
+	--interactive: #1D9E75;
+	--brand-100: #E1F5EE;
+	--accent: #EF9F27;
+	--neutral-bg: #F7F6F2;
+	--card: #FFFFFF;
+	--border: #E7E5DE;
+	--text: #1F2421;
+	--text-soft: #6B6A63;
+}
+
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;margin:0;background:var(--neutral-bg);color:var(--text);-webkit-font-smoothing:antialiased}
+
+/* Layout */
+.app-container{max-width:900px;margin:24px auto;padding:16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+.wordmark{display:flex;align-items:center;gap:12px;font-weight:600;color:var(--brand);font-size:20px}
+
+/* Cards & controls */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(31,36,33,0.06);margin-bottom:16px}
+.control{border-radius:8px;border:1px solid var(--border);padding:10px;width:100%;font-size:14px}
+.control:focus{outline:3px solid rgba(15,110,86,0.12);outline-offset:2px}
+
+.btn-primary{background:var(--brand);color:white;padding:12px;border-radius:10px;width:100%;font-weight:600;border:none}
+.btn-primary:disabled{opacity:0.6}
+.btn-ghost{background:transparent;border:1px solid var(--border);padding:10px;border-radius:8px}
+.btn-ghost:focus{outline:3px solid rgba(15,110,86,0.08)}
+
+.label{display:block;font-size:14px;margin-bottom:6px;color:var(--text-soft);font-weight:600}
+.small{font-size:12px;color:var(--text-soft)}
+
+/* Custom checkbox */
+.checkbox{width:20px;height:20px;border-radius:6px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;background:white;cursor:pointer}
+.checkbox-checked{background:var(--interactive);border-color:var(--interactive);}
+.checkbox-checked:after{content:'✓';color:white;font-size:12px}
+
+.badge{display:inline-flex;align-items:center;padding:6px 8px;border-radius:999px;font-weight:700}
+.badge-info{background:var(--brand-100);color:var(--text)}
+.badge-warning{background:#FFF4E6;color:var(--text)}
+.badge-danger{background:#FFEDEE;color:var(--text)}
+
+.stat-card{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:12px}
+
+/* Responsive small adjustments */
+@media(min-width:700px){
+	.app-container{padding:24px}
+}
+
+
