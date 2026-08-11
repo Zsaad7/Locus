@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const Login: React.FC = () => {
-  const { signInWithCode, signUp, error } = useAuth()
+  const { signInWithCode, signUp, error, session } = useAuth()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<'login'|'signup'>('login')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
@@ -48,10 +50,18 @@ const Login: React.FC = () => {
       }
       const { error } = await signInWithCode(code, password)
       if (error) setLocalErr(error.message ?? String(error))
+      else {
+        // successful sign-in: navigate to app root (ProtectedRoute will show dashboard)
+        navigate('/')
+      }
     }
 
     setBusy(false)
   }
+
+  useEffect(() => {
+    if (session) navigate('/')
+  }, [session, navigate])
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
