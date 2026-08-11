@@ -15,6 +15,7 @@ type Task = {
 const Dashboard: React.FC = () => {
   const { profile, station, refreshStationIp } = useAuth()
   const [attendanceOpen, setAttendanceOpen] = useState<any | null>(null)
+  const [attendanceList, setAttendanceList] = useState<any[]>([])
   const [warnings, setWarnings] = useState<any[]>([])
   const [commonTasks, setCommonTasks] = useState<Task[]>([])
   const [personalTasks, setPersonalTasks] = useState<Task[]>([])
@@ -32,7 +33,11 @@ const Dashboard: React.FC = () => {
         .eq('user_id', profile.id)
 
       if (attErr) console.error('Erreur Attendance:', attErr)
-      else setAttendanceOpen((attendanceData || []).find((a) => !a.clock_out) ?? null)
+      else {
+        const list = attendanceData || []
+        setAttendanceList(list)
+        setAttendanceOpen(list.find((a) => !a.clock_out) ?? null)
+      }
 
       // 2. Avertissements
       const { data: warningsData, error: warnErr } = await supabase
@@ -109,6 +114,19 @@ const Dashboard: React.FC = () => {
     ? `Depuis ${new Date(profile.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short' })}`
     : 'Non renseignée'
 
+  const findAttendanceByDate = (date: Date) => {
+    return attendanceList.find((a) => {
+      if (!a?.clock_in) return false
+      const d = new Date(a.clock_in)
+      return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate()
+    })
+  }
+
+  const todayAttendance = findAttendanceByDate(new Date())
+  const yesterdayDate = new Date()
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+  const yesterdayAttendance = findAttendanceByDate(yesterdayDate)
+
   return (
     <div className="app-container">
       <div className="topbar">
@@ -143,13 +161,21 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
             <div className="attendance-history">
-              <div className="attendance-row">
-                <span>Aujourd'hui</span>
-                <div>
-                  <strong>Entrée</strong> <span>{formatTime(attendanceOpen?.clock_in)}</span>
+              <div className="attendance-grid">
+                <div className="attendance-card">
+                  <div className="attendance-card-header">Aujourd'hui</div>
+                  <div className="attendance-card-footer">
+                    <div className="attendance-time"><strong>Entrée</strong> <span>{formatTime(todayAttendance?.clock_in ?? attendanceOpen?.clock_in)}</span></div>
+                    <div className="attendance-time"><strong>Sortie</strong> <span>{formatTime(todayAttendance?.clock_out ?? attendanceOpen?.clock_out)}</span></div>
+                  </div>
                 </div>
-                <div>
-                  <strong>Sortie</strong> <span>{formatTime(attendanceOpen?.clock_out)}</span>
+
+                <div className="attendance-card">
+                  <div className="attendance-card-header">Hier</div>
+                  <div className="attendance-card-footer">
+                    <div className="attendance-time"><strong>Entrée</strong> <span>{formatTime(yesterdayAttendance?.clock_in)}</span></div>
+                    <div className="attendance-time"><strong>Sortie</strong> <span>{formatTime(yesterdayAttendance?.clock_out)}</span></div>
+                  </div>
                 </div>
               </div>
             </div>
