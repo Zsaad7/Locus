@@ -9,10 +9,10 @@ type NavLinkItem = {
 }
 
 const navLinks: NavLinkItem[] = [
-  { label: 'Tableau de bord', to: '/dashboard', roles: ['responsable', 'salarie'] },
-  { label: 'Tâches', to: '/responsable/taches', roles: ['responsable', 'salarie'] },
-  { label: 'Production', to: '/responsable/production', roles: ['responsable', 'salarie'] },
-  { label: 'Pertes', to: '/responsable/perte', roles: ['responsable', 'salarie'] },
+  { label: 'Tableau de bord', to: '/dashboard', roles: ['responsable'] },
+  { label: 'Tâches', to: '/responsable/taches', roles: ['responsable'] },
+  { label: 'Production', to: '/responsable/production', roles: ['responsable'] },
+  { label: 'Pertes', to: '/responsable/perte', roles: ['responsable'] },
   { label: 'Créer profil', to: '/responsable/creation/profile', roles: ['responsable'] },
 ]
 
@@ -46,18 +46,20 @@ const Navbar: React.FC = () => {
         </div>
       </div>
 
-      <nav className="navbar-links">
-        {displayLinks.map((link) => (
-          <Link
-            key={link.to}
-            to={link.to}
-            className={`navbar-link ${location.pathname === link.to ? 'navbar-link-active' : ''}`}
-            onClick={() => setOpen(false)}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </nav>
+      {displayLinks.length > 0 && (
+        <nav className="navbar-links">
+          {displayLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={`navbar-link ${location.pathname === link.to ? 'navbar-link-active' : ''}`}
+              onClick={() => setOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       <div className="navbar-actions">
         <button type="button" className="icon-btn" aria-label="Messages">✉</button>
