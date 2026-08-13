@@ -13,7 +13,8 @@ const navLinks: NavLinkItem[] = [
   { label: 'Tâches', to: '/responsable/taches', roles: ['responsable'] },
   { label: 'Production', to: '/responsable/production', roles: ['responsable'] },
   { label: 'Pertes', to: '/responsable/perte', roles: ['responsable'] },
-  { label: 'Créer profil', to: '/responsable/creation/profile', roles: ['responsable'] },
+  { label: 'Création', to: '/responsable/creation/profile', roles: ['responsable'] },
+  {label: 'Planning', to: '/responsable/planning', roles: ['responsable']},
 ]
 
 const Navbar: React.FC = () => {
@@ -78,13 +79,16 @@ const Navbar: React.FC = () => {
               {role === 'responsable' && (
                 <Link to="/responsable/taches" className="profile-link" onClick={() => setOpen(false)}>Tâches</Link>              )}
               {role === 'responsable' && (
-                <Link to="/responsable/creation/profile" className="profile-link" onClick={() => setOpen(false)}>Créer profil</Link>
+                <Link to="/responsable/creation/profile" className="profile-link" onClick={() => setOpen(false)}>Création</Link>
               )}
               {role === 'responsable' && (
                 <Link to="/responsable/production" className="profile-link" onClick={() => setOpen(false)}>Production</Link>
               )}
                 {role === 'responsable' && (
                 <Link to="/responsable/perte" className="profile-link" onClick={() => setOpen(false)}>Pertes</Link>
+              )}
+              {role === 'responsable' && (
+                <Link to="/responsable/planning" className="profile-link" onClick={() => setOpen(false)}>Planning</Link>
               )}
 
             </div>

@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react'
 import axios from 'axios'
+import { useNavigate } from 'react-router-dom' // <-- Ajout de useNavigate
 import { useAuth } from '../../../context/AuthContext'
 
 type Priority = 'Urgent' | 'High' | 'Medium' | 'Minor'
@@ -68,6 +69,7 @@ const taskLogsEndpoint = `${supabaseUrl}/rest/v1/task_logs`
 
 const DashSalarie: React.FC = () => {
   const { profile, session, loading } = useAuth()
+  const navigate = useNavigate() // <-- Initialisation du hook de navigation
 
   // ÉTATS CORRIGÉS (UUID = string)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -123,6 +125,11 @@ const DashSalarie: React.FC = () => {
     setClockInTime(formattedTime)
   }
 
+  // Redirection au clic du bouton PO
+  const handleGoToProductionView = () => {
+    navigate('/production-view') // Changez cette URL par votre route réelle (ex: '/production-salarie')
+  }
+
   const toggleAnswer = (taskId: string, value: Answer) => {
     setAnswers((prev) => ({
       ...prev,
@@ -153,7 +160,7 @@ const DashSalarie: React.FC = () => {
     setError(null)
 
     try {
-      // Enregistrement dans task_logs avec task_id au format UUID (string)
+      // Enregistrement dans task_logs
       await axios.post(
         taskLogsEndpoint,
         {
@@ -267,7 +274,16 @@ const DashSalarie: React.FC = () => {
           }}
         >
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>DLC</button>
-          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>PO</button>
+          
+          {/* BOUTON PO AVEC REDIRECTION */}
+          <button 
+            className="btn-primary" 
+            style={{ flex: 1, minWidth: '120px' }}
+            onClick={handleGoToProductionView}
+          >
+            PO
+          </button>
+          
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>CAISSE</button>
           <button 
             className="btn-primary" 
