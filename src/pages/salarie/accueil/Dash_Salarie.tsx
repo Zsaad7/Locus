@@ -2,7 +2,6 @@
 import axios from 'axios'
 import { useAuth } from '../../../context/AuthContext'
 
-// Type de priorité possible
 type Priority = 'Urgent' | 'High' | 'Medium' | 'Minor'
 
 type Task = {
@@ -12,10 +11,26 @@ type Task = {
   scope?: string
   shift?: string | null
   station_id?: string | null
-  priority?: Priority // Nouveau champ de priorité
+  priority?: Priority
 }
 
 type Answer = 'yes' | 'no' | null
+
+// MAPPING ET FONCTION DE TRI DES PRIORITÉS
+const PRIORITY_ORDER: Record<Priority, number> = {
+  Urgent: 1,
+  High: 2,
+  Medium: 3,
+  Minor: 4,
+}
+
+const sortTasksByPriority = (tasksList: Task[]): Task[] => {
+  return [...tasksList].sort((a, b) => {
+    const priorityA = a.priority || 'Medium'
+    const priorityB = b.priority || 'Medium'
+    return PRIORITY_ORDER[priorityA] - PRIORITY_ORDER[priorityB]
+  })
+}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const tasksEndpoint = `${supabaseUrl}/rest/v1/tasks`
@@ -28,6 +43,9 @@ const DashSalarie: React.FC = () => {
   const [submitted, setSubmitted] = useState<Record<number, boolean>>({})
   const [hiddenTaskIds, setHiddenTaskIds] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  // STATE POUR L'HEURE DE POINTAGE
+  const [clockInTime, setClockInTime] = useState<string | null>(null)
 
   const getHeaders = () => ({
     apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
@@ -61,6 +79,17 @@ const DashSalarie: React.FC = () => {
     loadTasks()
     return () => controller.abort()
   }, [profile, session])
+
+  // GESTION DU POINTAGE
+  const handlePointage = () => {
+    const now = new Date()
+    const formattedTime = now.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    setClockInTime(formattedTime)
+  }
 
   const toggleAnswer = (taskId: number, value: Answer) => {
     setAnswers((prev) => ({
@@ -96,40 +125,41 @@ const DashSalarie: React.FC = () => {
     }
   }
 
-  // Fonction pour afficher le badge de priorité avec la bonne couleur
- const renderPriorityBadge = (priority?: Priority) => {
-  // Si la priorité est vide/null, on affiche "Medium" par défaut
-  const activePriority: Priority = priority || 'Medium'
+  const renderPriorityBadge = (priority?: Priority) => {
+    const activePriority: Priority = priority || 'Medium'
 
-  const styles: Record<Priority, { bg: string; color: string }> = {
-    Urgent: { bg: '#FEE2E2', color: '#DC2626' }, // Rouge
-    High: { bg: '#FFEDD5', color: '#EA580C' },   // Orange
-    Medium: { bg: '#DBEAFE', color: '#2563EB' }, // Bleu
-    Minor: { bg: '#F1F5F9', color: '#64748B' },  // Gris
+    const styles: Record<Priority, { bg: string; color: string }> = {
+      Urgent: { bg: '#FEE2E2', color: '#DC2626' },
+      High: { bg: '#FFEDD5', color: '#EA580C' },
+      Medium: { bg: '#DBEAFE', color: '#2563EB' },
+      Minor: { bg: '#F1F5F9', color: '#64748B' },
+    }
+
+    const currentStyle = styles[activePriority]
+
+    return (
+      <span
+        style={{
+          backgroundColor: currentStyle.bg,
+          color: currentStyle.color,
+          fontSize: '11px',
+          fontWeight: 700,
+          padding: '3px 8px',
+          borderRadius: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          display: 'inline-block',
+        }}
+      >
+        {activePriority}
+      </span>
+    )
   }
 
-  const currentStyle = styles[activePriority]
-
-  return (
-    <span
-      style={{
-        backgroundColor: currentStyle.bg,
-        color: currentStyle.color,
-        fontSize: '11px',
-        fontWeight: 700,
-        padding: '3px 8px',
-        borderRadius: '12px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.5px',
-        display: 'inline-block',
-      }}
-    >
-      {activePriority}
-    </span>
+  // FILTRAGE ET TRI PAR PRIORITÉ
+  const visibleTasks = sortTasksByPriority(
+    tasks.filter((task) => !hiddenTaskIds.includes(task.id))
   )
-}
-
-  const visibleTasks = tasks.filter((task) => !hiddenTaskIds.includes(task.id))
 
   if (loading || !profile) {
     return (
@@ -145,13 +175,30 @@ const DashSalarie: React.FC = () => {
     <div className="app-container">
       <div className="topbar">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>{profile.full_name}</div>
+          <div style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>{profile.full_name}</span>
+            {/* AFFICHAGE DE L'HEURE DE POINTAGE A CÔTÉ DU NOM */}
+            {clockInTime && (
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  backgroundColor: '#DCFCE7',
+                  color: '#15803D',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  border: '1px solid #86EFAC',
+                }}
+              >
+                Pointé à {clockInTime}
+              </span>
+            )}
+          </div>
           <div className="small">Salarié — {profile.shift}</div>
         </div>
       </div>
 
       <div className="dashboard-shell">
-        {/* BOUTONS D'ACTION */}
         <div 
           className="card button-stack-card" 
           style={{ 
@@ -165,10 +212,16 @@ const DashSalarie: React.FC = () => {
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>DLC</button>
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>PO</button>
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>CAISSE</button>
-          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>POINTAGE</button>
+          {/* BOUTON POINTAGE AVEC ONCLICK */}
+          <button 
+            className="btn-primary" 
+            style={{ flex: 1, minWidth: '120px' }}
+            onClick={handlePointage}
+          >
+            POINTAGE
+          </button>
         </div>
 
-        {/* LISTE DES TÂCHES */}
         <div className="card task-section">
           <h3 style={{ marginTop: 0, marginBottom: 16 }}>Liste des tâches</h3>
           {error && <div style={{ color: '#C0392B', marginBottom: 12, fontWeight: 500 }}>{error}</div>}
@@ -194,7 +247,6 @@ const DashSalarie: React.FC = () => {
                       borderBottom: '1px solid #E2E8F0' 
                     }}
                   >
-                    {/* LIGNE PRINCIPALE : TITRE + BADGE PRIORITÉ À CÔTÉ ET BOUTONS À DROITE */}
                     <div 
                       style={{ 
                         display: 'flex', 
@@ -204,7 +256,6 @@ const DashSalarie: React.FC = () => {
                         width: '100%' 
                       }}
                     >
-                      {/* TITRE DE LA TÂCHE + BADGE DE PRIORITÉ */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                         <span style={{ fontWeight: 500, fontSize: 15 }}>
                           {task.title ?? task.description ?? `Tâche ${task.id}`}
@@ -212,7 +263,6 @@ const DashSalarie: React.FC = () => {
                         {renderPriorityBadge(task.priority)}
                       </div>
 
-                      {/* BOUTONS OUI / NON */}
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                         <button
                           type="button"
@@ -233,7 +283,6 @@ const DashSalarie: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* SAISIE DE COMMENTAIRE (ALIGNÉ EN BAS À DROITE) */}
                     {answer === 'no' && !isSubmitted && (
                       <div 
                         style={{ 
@@ -270,7 +319,6 @@ const DashSalarie: React.FC = () => {
                       </div>
                     )}
 
-                    {/* AFFICHAGE DU COMMENTAIRE SOUMIS (ALIGNÉ EN BAS À DROITE) */}
                     {answer === 'no' && isSubmitted && (
                       <div 
                         style={{ 
@@ -290,7 +338,6 @@ const DashSalarie: React.FC = () => {
                       </div>
                     )}
 
-                    {/* BOUTON VALIDER ET SUPPRIMER (ALIGNÉ EN BAS À DROITE) */}
                     {answer === 'yes' && !isSubmitted && (
                       <div style={{ alignSelf: 'flex-end' }}>
                         <button 
