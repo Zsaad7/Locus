@@ -4,19 +4,21 @@ import { useAuth } from '../../../context/AuthContext'
 
 type Priority = 'Urgent' | 'High' | 'Medium' | 'Minor'
 
+// TYPE TASK AJUSTÉ AVEC ID EN STRING (UUID)
 type Task = {
-  id: number
+  id: string
   title?: string
   description?: string
   scope?: string
   shift?: string | null
   station_id?: string | null
   priority?: Priority
+  due_date?: string
+  recurrence_interval?: string
 }
 
 type Answer = 'yes' | 'no' | null
 
-// MAPPING ET FONCTION DE TRI DES PRIORITÉS
 const PRIORITY_ORDER: Record<Priority, number> = {
   Urgent: 1,
   High: 2,
@@ -32,19 +34,50 @@ const sortTasksByPriority = (tasksList: Task[]): Task[] => {
   })
 }
 
+const formatRecurrence = (interval?: string) => {
+  if (!interval) return 'Ponctuelle'
+  if (interval.includes('1 day')) return 'Tous les jours'
+  if (interval.includes('2 day')) return 'Tous les 2 jours'
+  if (interval.includes('3 day')) return 'Tous les 3 jours'
+  if (interval.includes('7 day') || interval.includes('1 week')) return 'Chaque semaine'
+  return interval
+}
+
+const getDueDateStatus = (dueDateStr?: string) => {
+  if (!dueDateStr) return { label: '', color: '#64748B' }
+
+  const dueDate = new Date(dueDateStr)
+  const now = new Date()
+  const isToday = dueDate.toDateString() === now.toDateString()
+  const isPast = dueDate < now && !isToday
+
+  if (isPast) {
+    return { label: 'En retard', color: '#DC2626' }
+  }
+  if (isToday) {
+    return { label: "Aujourd'hui (Jour J)", color: '#059669' }
+  }
+
+  const formattedDate = dueDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+  return { label: `Échéance le ${formattedDate}`, color: '#2563EB' }
+}
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const tasksEndpoint = `${supabaseUrl}/rest/v1/tasks`
+const taskLogsEndpoint = `${supabaseUrl}/rest/v1/task_logs`
 
 const DashSalarie: React.FC = () => {
   const { profile, session, loading } = useAuth()
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [answers, setAnswers] = useState<Record<number, Answer>>({})
-  const [comments, setComments] = useState<Record<number, string>>({})
-  const [submitted, setSubmitted] = useState<Record<number, boolean>>({})
-  const [hiddenTaskIds, setHiddenTaskIds] = useState<number[]>([])
-  const [error, setError] = useState<string | null>(null)
 
-  // STATE POUR L'HEURE DE POINTAGE
+  // ÉTATS CORRIGÉS (UUID = string)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [answers, setAnswers] = useState<Record<string, Answer>>({})
+  const [comments, setComments] = useState<Record<string, string>>({})
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null)
+
   const [clockInTime, setClockInTime] = useState<string | null>(null)
 
   const getHeaders = () => ({
@@ -61,7 +94,7 @@ const DashSalarie: React.FC = () => {
 
     async function loadTasks() {
       try {
-        const response = await axios.get<Task[]>(`${tasksEndpoint}?select=*&order=created_at.desc`, {
+        const response = await axios.get<Task[]>(`${tasksEndpoint}?select=*&order=due_date.asc`, {
           headers: getHeaders(),
           signal: controller.signal,
         })
@@ -80,7 +113,6 @@ const DashSalarie: React.FC = () => {
     return () => controller.abort()
   }, [profile, session])
 
-  // GESTION DU POINTAGE
   const handlePointage = () => {
     const now = new Date()
     const formattedTime = now.toLocaleTimeString('fr-FR', {
@@ -91,7 +123,7 @@ const DashSalarie: React.FC = () => {
     setClockInTime(formattedTime)
   }
 
-  const toggleAnswer = (taskId: number, value: Answer) => {
+  const toggleAnswer = (taskId: string, value: Answer) => {
     setAnswers((prev) => ({
       ...prev,
       [taskId]: prev[taskId] === value ? null : value,
@@ -102,26 +134,53 @@ const DashSalarie: React.FC = () => {
     }
   }
 
-  const handleCommentChange = (taskId: number, value: string) => {
+  const handleCommentChange = (taskId: string, value: string) => {
     setComments((prev) => ({ ...prev, [taskId]: value }))
   }
 
-  const handleSubmit = (taskId: number) => {
+  const handleSubmit = async (taskId: string) => {
     const answer = answers[taskId]
-    if (answer === 'no') {
-      if (!comments[taskId]?.trim()) {
-        setError('Merci de saisir un commentaire avant de soumettre.')
-        return
-      }
-      setSubmitted((prev) => ({ ...prev, [taskId]: true }))
-      setError(null)
+    if (!answer) return
+
+    const comment = comments[taskId]?.trim() ?? ''
+
+    if (answer === 'no' && !comment) {
+      setError('Merci de saisir un commentaire avant de soumettre.')
       return
     }
 
-    if (answer === 'yes') {
-      setHiddenTaskIds((prev) => [...prev, taskId])
+    setSubmittingTaskId(taskId)
+    setError(null)
+
+    try {
+      // Enregistrement dans task_logs avec task_id au format UUID (string)
+      await axios.post(
+        taskLogsEndpoint,
+        {
+          task_id: taskId,
+          user_id: session?.user?.id,
+          user_name: profile?.full_name ?? 'Inconnu',
+          status: answer,
+          comment: answer === 'no' ? comment : null,
+          shift: profile?.shift ?? null,
+          completed_at: new Date().toISOString(),
+        },
+        { headers: getHeaders() }
+      )
+
       setSubmitted((prev) => ({ ...prev, [taskId]: true }))
-      setError(null)
+
+      if (answer === 'yes') {
+        setHiddenTaskIds((prev) => [...prev, taskId])
+      }
+    } catch (err: any) {
+      setError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message ?? err.message
+          : "Erreur lors de l'enregistrement de la tâche."
+      )
+    } finally {
+      setSubmittingTaskId(null)
     }
   }
 
@@ -156,7 +215,6 @@ const DashSalarie: React.FC = () => {
     )
   }
 
-  // FILTRAGE ET TRI PAR PRIORITÉ
   const visibleTasks = sortTasksByPriority(
     tasks.filter((task) => !hiddenTaskIds.includes(task.id))
   )
@@ -177,7 +235,6 @@ const DashSalarie: React.FC = () => {
         <div>
           <div style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span>{profile.full_name}</span>
-            {/* AFFICHAGE DE L'HEURE DE POINTAGE A CÔTÉ DU NOM */}
             {clockInTime && (
               <span
                 style={{
@@ -212,7 +269,6 @@ const DashSalarie: React.FC = () => {
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>DLC</button>
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>PO</button>
           <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>CAISSE</button>
-          {/* BOUTON POINTAGE AVEC ONCLICK */}
           <button 
             className="btn-primary" 
             style={{ flex: 1, minWidth: '120px' }}
@@ -234,6 +290,8 @@ const DashSalarie: React.FC = () => {
                 const answer = answers[task.id]
                 const isSubmitted = submitted[task.id]
                 const comment = comments[task.id] ?? ''
+                const dueDateStatus = getDueDateStatus(task.due_date)
+                const isSubmitting = submittingTaskId === task.id
 
                 return (
                   <div 
@@ -256,11 +314,24 @@ const DashSalarie: React.FC = () => {
                         width: '100%' 
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                        <span style={{ fontWeight: 500, fontSize: 15 }}>
-                          {task.title ?? task.description ?? `Tâche ${task.id}`}
-                        </span>
-                        {renderPriorityBadge(task.priority)}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontWeight: 500, fontSize: 15 }}>
+                            {task.title ?? task.description ?? `Tâche ${task.id}`}
+                          </span>
+                          {renderPriorityBadge(task.priority)}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 12, fontSize: '12px', marginTop: 2 }}>
+                          <span style={{ color: '#64748B', fontWeight: 500 }}>
+                            🔄 {formatRecurrence(task.recurrence_interval)}
+                          </span>
+                          {dueDateStatus.label && (
+                            <span style={{ color: dueDateStatus.color, fontWeight: 600 }}>
+                              📅 {dueDateStatus.label}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
@@ -269,6 +340,7 @@ const DashSalarie: React.FC = () => {
                           className={`task-chip ${answer === 'yes' ? 'task-chip-active' : ''}`}
                           onClick={() => toggleAnswer(task.id, 'yes')}
                           style={{ minWidth: '60px' }}
+                          disabled={isSubmitting}
                         >
                           Oui
                         </button>
@@ -277,6 +349,7 @@ const DashSalarie: React.FC = () => {
                           className={`task-chip ${answer === 'no' ? 'task-chip-active' : ''}`}
                           onClick={() => toggleAnswer(task.id, 'no')}
                           style={{ minWidth: '60px' }}
+                          disabled={isSubmitting}
                         >
                           Non
                         </button>
@@ -313,8 +386,9 @@ const DashSalarie: React.FC = () => {
                           className="btn-primary" 
                           style={{ width: '140px', alignSelf: 'flex-end' }} 
                           onClick={() => handleSubmit(task.id)}
+                          disabled={isSubmitting}
                         >
-                          Soumettre
+                          {isSubmitting ? 'Envoi...' : 'Soumettre'}
                         </button>
                       </div>
                     )}
@@ -345,8 +419,9 @@ const DashSalarie: React.FC = () => {
                           className="btn-primary" 
                           style={{ width: '180px' }} 
                           onClick={() => handleSubmit(task.id)}
+                          disabled={isSubmitting}
                         >
-                          Valider et supprimer
+                          {isSubmitting ? 'Envoi...' : 'Valider et supprimer'}
                         </button>
                       </div>
                     )}

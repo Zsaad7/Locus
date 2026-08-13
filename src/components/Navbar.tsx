@@ -76,7 +76,7 @@ const Navbar: React.FC = () => {
             <div className="profile-links">
               <Link to="/dashboard" className="profile-link" onClick={() => setOpen(false)}>Tableau de bord</Link>
               {role === 'responsable' && (
-                <Link to="/taches" className="profile-link" onClick={() => setOpen(false)}>Tâches</Link>              )}
+                <Link to="/responsable/taches" className="profile-link" onClick={() => setOpen(false)}>Tâches</Link>              )}
               {role === 'responsable' && (
                 <Link to="/responsable/creation/profile" className="profile-link" onClick={() => setOpen(false)}>Créer profil</Link>
               )}

@@ -7,7 +7,7 @@ import Tasks from './pages/Tasks'
 import ProductionPage from './pages/responsable/production/production'
 import PertePage from './pages/responsable/perte/perte'
 import ProfileCreation from './pages/responsable/creation/profile'
-import TachesPage from './pages/responsable/taches/taches'
+import TachesHistoriques from './pages/responsable/taches/taches_historiques'
 import ProtectedRoute from './components/ProtectedRoute'
 import Unauthorized from './pages/Unauthorized'
 
@@ -54,7 +54,7 @@ const router = createBrowserRouter([
           { path: '/tasks', element: <Tasks /> },
           { path: '/responsable/perte', element: <PertePage /> },
           { path: '/responsable/creation/profile', element: <ProfileCreation /> },
-          { path: '/responsable/taches', element: <TachesPage /> },
+          { path: '/responsable/taches', element: <TachesHistoriques /> },
         ],
       },
     ],
