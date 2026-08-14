@@ -1,13 +1,28 @@
 import React, { useEffect, useState } from 'react'
-import axios from 'axios'
 import { useAuth } from '../../../context/AuthContext'
 import { supabase } from '../../../lib/supabase'
 
 type Priority = 'Urgent' | 'High' | 'Medium' | 'Minor'
-type CreationMode = 'profile' | 'task'
+type CreationMode = 'profile' | 'task' | 'product'
 type WorkShiftKey = 'matin' | 'apres-midi' | 'nuit'
 
-// Type aligné strictement avec votre schéma de BDD
+// Type pour les catégories et familles depuis BDD
+type FamilleProduit = {
+  id: string
+  famille?: string
+  categorie?: string
+}
+
+// TYPE CORRIGÉ : Retrait de user_id et station_id
+type ProductionEntry = {
+  id?: string
+  label: string
+  quantity: number
+  famille_id: string
+  created_at?: string
+}
+
+// Type aligné strictement avec le schéma BDD pour les tâches
 type TaskEntry = {
   id: string // UUID
   title: string
@@ -26,14 +41,10 @@ const staticShiftOptions: { key: WorkShiftKey; db: string; label: string }[] = [
   { key: 'nuit', db: 'nuit', label: 'Nuit' },
 ]
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-const tasksEndpoint = `${supabaseUrl}/rest/v1/tasks`
-
 const CreationPage: React.FC = () => {
   const { session, profile, station } = useAuth()
 
-  // MODE DE CRÉATION SELECTIONNÉ
+  // MODE DE CRÉATION SÉLECTIONNÉ
   const [mode, setMode] = useState<CreationMode>('profile')
 
   // ÉTATS FORMULAIRE PROFIL
@@ -49,6 +60,19 @@ const CreationPage: React.FC = () => {
   const [shift, setShift] = useState<WorkShiftKey>('matin')
   const [recurrenceInterval, setRecurrenceInterval] = useState('1 day')
 
+  // ÉTATS FORMULAIRE PRODUIT À PRODUIRE (PRODUCTION)
+  const [prodProduit, setProdProduit] = useState('')
+  const [prodCategorie, setProdCategorie] = useState('')
+  const [prodFamilleId, setProdFamilleId] = useState<string>('')
+  const [prodQuantite, setProdQuantite] = useState<number>(10)
+  const [prodShift, setProdShift] = useState<WorkShiftKey>('matin')
+
+  // DONNÉES CATÉGORIES & FAMILLES (DEPUIS BDD famille_produits)
+  const [familleProduitsList, setFamilleProduitsList] = useState<FamilleProduit[]>([])
+  const [categoriesList, setCategoriesList] = useState<string[]>([])
+  const [availableFamilles, setAvailableFamilles] = useState<FamilleProduit[]>([])
+  const [loadingFamilles, setLoadingFamilles] = useState(false)
+
   // LISTE DES TÂCHES & GESTION DES SHIFTS
   const [tasks, setTasks] = useState<TaskEntry[]>([])
   const [shiftOptionsState, setShiftOptionsState] = useState(staticShiftOptions)
@@ -59,15 +83,8 @@ const CreationPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  const getHeaders = () => ({
-    apikey: supabaseKey,
-    Authorization: `Bearer ${session?.access_token ?? supabaseKey}`,
-    'Content-Type': 'application/json',
-    Prefer: 'return=representation',
-  })
-
   const keyToDb = (k: string) => k.replace(/-/g, '_')
-  
+
   const dbToLabel = (dbVal: string | null) => {
     if (!dbVal) return '—'
     const found = (shiftOptionsState || staticShiftOptions).find((s) => s.db === dbVal)
@@ -80,8 +97,66 @@ const CreationPage: React.FC = () => {
     if (!profile?.shift) return
     const key = profile.shift.replace(/_/g, '-') as WorkShiftKey
     const found = (shiftOptionsState || staticShiftOptions).find((s) => s.key === key)
-    if (found) setShift(found.key)
+    if (found) {
+      setShift(found.key)
+      setProdShift(found.key)
+    }
   }, [profile])
+
+  // 1. Charger les catégories et familles via le client Supabase
+  useEffect(() => {
+    const fetchFamilleProduits = async () => {
+      setLoadingFamilles(true)
+      try {
+        const { data, error } = await supabase
+          .from('famille_produits')
+          .select('id, categorie, famille')
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          setFamilleProduitsList(data as FamilleProduit[])
+
+          const uniqueCategories = Array.from(
+            new Set(data.map((item) => item.categorie).filter(Boolean) as string[])
+          )
+
+          setCategoriesList(uniqueCategories)
+
+          if (uniqueCategories.length > 0) {
+            setProdCategorie(uniqueCategories[0])
+          }
+        }
+      } catch (err: any) {
+        console.error('Erreur chargement famille_produits:', err)
+      } finally {
+        setLoadingFamilles(false)
+      }
+    }
+
+    fetchFamilleProduits()
+  }, [])
+
+  // 2. Mettre à jour la liste des familles dynamiquement selon la catégorie sélectionnée
+  useEffect(() => {
+    if (!prodCategorie) {
+      setAvailableFamilles([])
+      setProdFamilleId('')
+      return
+    }
+
+    const filteredFamilles = familleProduitsList.filter(
+      (item) => item.categorie === prodCategorie && item.id
+    )
+
+    setAvailableFamilles(filteredFamilles)
+
+    if (filteredFamilles.length > 0 && filteredFamilles[0].id) {
+      setProdFamilleId(filteredFamilles[0].id)
+    } else {
+      setProdFamilleId('')
+    }
+  }, [prodCategorie, familleProduitsList])
 
   // Récupération dynamique des enum de shift
   useEffect(() => {
@@ -104,37 +179,30 @@ const CreationPage: React.FC = () => {
           return
         }
       } catch (e: any) {
-        try {
-          const resp = await axios.post<string[]>(`${supabaseUrl}/rpc/get_work_shifts`, {}, { headers: getHeaders() })
-          if (cancelled) return
-          if (Array.isArray(resp.data) && resp.data.length > 0) {
-            const mapped = resp.data.map((dbVal) => ({
-              key: dbVal.replace(/_/g, '-') as WorkShiftKey,
-              db: dbVal,
-              label: dbToLabel(dbVal),
-            }))
-            setShiftOptionsState(mapped)
-            setLoadingShifts(false)
-            return
-          }
-        } catch (e2: any) {
-          setShiftsError(axios.isAxiosError(e2) ? e2.response?.data ?? e2.message : String(e2))
+        if (!cancelled) {
+          setShiftsError(e.message || String(e))
+          setShiftOptionsState(staticShiftOptions)
         }
+      } finally {
+        if (!cancelled) setLoadingShifts(false)
       }
-      setShiftOptionsState(staticShiftOptions)
-      setLoadingShifts(false)
     }
     fetchShifts()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [session])
 
-  // Chargement des tâches
+  // Chargement des tâches via le client Supabase
   const loadTasks = async () => {
     try {
-      const response = await axios.get<TaskEntry[]>(`${tasksEndpoint}?select=*&order=created_at.desc`, {
-        headers: getHeaders(),
-      })
-      setTasks(response.data)
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setTasks(data as TaskEntry[])
     } catch (err) {
       console.error('Erreur de chargement des tâches', err)
     }
@@ -153,9 +221,43 @@ const CreationPage: React.FC = () => {
     setMessage(null)
 
     try {
+      const tempPassword = Math.random().toString(36).slice(-10) + '!A1'
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: tempPassword,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            role,
+            shift: keyToDb(userShift.toLowerCase()),
+          },
+        },
+      })
+
+      if (authError) throw authError
+
+      if (authData.user) {
+        const { error: profileError } = await supabase.from('profiles').insert([
+          {
+            id: authData.user.id,
+            full_name: fullName.trim(),
+            email: email.trim(),
+            role,
+            shift: keyToDb(userShift.toLowerCase()),
+            station_id: profile?.station_id ?? null,
+          },
+        ])
+
+        if (profileError && profileError.code !== '23505') {
+          throw profileError
+        }
+      }
+
       setMessage({ type: 'success', text: `Profil de ${fullName} créé avec succès !` })
       setFullName('')
       setEmail('')
+      setRole('salarie')
+      setUserShift('Matin')
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Erreur lors de la création du profil.' })
     } finally {
@@ -163,7 +265,7 @@ const CreationPage: React.FC = () => {
     }
   }
 
-  // SOUMISSION TÂCHE (Paylaod adapté)
+  // SOUMISSION TÂCHE
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!taskTitle.trim()) {
@@ -190,7 +292,9 @@ const CreationPage: React.FC = () => {
     }
 
     try {
-      await axios.post(tasksEndpoint, payload, { headers: getHeaders() })
+      const { error } = await supabase.from('tasks').insert([payload])
+
+      if (error) throw error
 
       setMessage({ type: 'success', text: 'Tâche créée avec succès !' })
       setTaskTitle('')
@@ -201,9 +305,48 @@ const CreationPage: React.FC = () => {
     } catch (err: any) {
       setMessage({
         type: 'error',
-        text: axios.isAxiosError(err)
-          ? err.response?.data?.message ?? err.message
-          : 'Erreur lors de la création de la tâche.',
+        text: err.message || 'Erreur lors de la création de la tâche.',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // SOUMISSION PRODUIT À PRODUIRE (ÉCRITURE DANS TABLE PRODUCTION)
+  const handleCreateProduction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!prodProduit.trim()) {
+      setMessage({ type: 'error', text: 'Le nom du produit est obligatoire.' })
+      return
+    }
+    if (!prodFamilleId) {
+      setMessage({ type: 'error', text: 'Veuillez sélectionner une famille de produit valide.' })
+      return
+    }
+
+    setLoading(true)
+    setMessage(null)
+
+    // CORRIGÉ : Retrait de `user_id` qui n'existe pas dans la table `production`
+    const newProduction: ProductionEntry = {
+      label: prodProduit.trim(),
+      quantity: Number(prodQuantite),
+      famille_id: prodFamilleId,
+    }
+
+    try {
+      const { error } = await supabase.from('production').insert([newProduction])
+
+      if (error) throw error
+
+      setMessage({ type: 'success', text: `Produit "${prodProduit}" ajouté à la production avec succès !` })
+      setProdProduit('')
+      setProdQuantite(10)
+    } catch (err: any) {
+      console.error('Erreur création production:', err)
+      setMessage({
+        type: 'error',
+        text: err.message || 'Erreur lors de l’ajout du produit en production.',
       })
     } finally {
       setLoading(false)
@@ -215,7 +358,7 @@ const CreationPage: React.FC = () => {
       <div className="topbar">
         <div>
           <div style={{ fontSize: 18, fontWeight: 600 }}>Espace Création</div>
-          <div className="small">Ajoutez un nouveau membre ou configurez des tâches récurrentes</div>
+          <div className="small">Ajoutez un nouveau membre, une tâche ou un produit à produire</div>
         </div>
       </div>
 
@@ -230,6 +373,7 @@ const CreationPage: React.FC = () => {
             alignItems: 'center',
             backgroundColor: '#FFFFFF',
             padding: '16px 20px',
+            flexWrap: 'wrap',
           }}
         >
           <span style={{ fontWeight: 600, color: '#475569', marginRight: 8 }}>
@@ -282,6 +426,30 @@ const CreationPage: React.FC = () => {
               style={{ accentColor: '#2563EB', cursor: 'pointer' }}
             />
             Créer une Tâche
+          </label>
+
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              fontWeight: mode === 'product' ? 600 : 400,
+              color: mode === 'product' ? '#0F172A' : '#64748B',
+            }}
+          >
+            <input
+              type="radio"
+              name="creationMode"
+              value="product"
+              checked={mode === 'product'}
+              onChange={() => {
+                setMode('product')
+                setMessage(null)
+              }}
+              style={{ accentColor: '#2563EB', cursor: 'pointer' }}
+            />
+            Ajouter un Produit à Produire
           </label>
         </div>
 
@@ -336,7 +504,7 @@ const CreationPage: React.FC = () => {
                   <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>Rôle</label>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value as any)}
+                    onChange={(e) => setRole(e.target.value as 'salarie' | 'responsable')}
                     style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
                   >
                     <option value="salarie">Salarié</option>
@@ -373,7 +541,6 @@ const CreationPage: React.FC = () => {
         {/* 2. CRÉATION & LISTE DES TÂCHES */}
         {mode === 'task' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* CARD FORMULAIRE TÂCHE */}
             <div className="card taches-card">
               <h3 style={{ marginTop: 0, marginBottom: 8 }}>Créer une nouvelle tâche</h3>
               <p style={{ marginTop: 0, marginBottom: 16, color: '#64748B', fontSize: 14 }}>
@@ -491,7 +658,7 @@ const CreationPage: React.FC = () => {
               </form>
             </div>
 
-            {/* CARD LISTE DES TÂCHES */}
+            {/* LISTE DES TÂCHES */}
             <div className="card taches-card">
               <h3 style={{ marginTop: 0, marginBottom: 16 }}>Liste des tâches enregistrées</h3>
               <div style={{ display: 'grid', gap: 10 }}>
@@ -508,7 +675,7 @@ const CreationPage: React.FC = () => {
                         padding: '12px 16px',
                         border: '1px solid #E2E8F0',
                         borderRadius: '8px',
-                        backgroundColor: '#F8FAFC'
+                        backgroundColor: '#F8FAFC',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 12, alignItems: 'center' }}>
@@ -529,6 +696,106 @@ const CreationPage: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 3. CRÉATION D'UN PRODUIT À PRODUIRE (TABLE PRODUCTION) */}
+        {mode === 'product' && (
+          <div className="card">
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Ajouter un produit à produire</h3>
+            <p style={{ marginTop: 0, marginBottom: 16, color: '#64748B', fontSize: 14 }}>
+              Planifiez la fabrication d'un produit. Les familles sont extraites directement de la base.
+            </p>
+
+            <form onSubmit={handleCreateProduction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                  Nom du produit *
+                </label>
+                <input
+                  type="text"
+                  value={prodProduit}
+                  onChange={(e) => setProdProduit(e.target.value)}
+                  placeholder="Ex: Baguette Tradition, Croissant Beurre..."
+                  required
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {/* SÉLECTION DE LA CATÉGORIE */}
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                    Catégorie * {loadingFamilles && <span style={{ fontSize: 12, color: '#64748B' }}>(Chargement...)</span>}
+                  </label>
+                  <select
+                    value={prodCategorie}
+                    onChange={(e) => setProdCategorie(e.target.value)}
+                    disabled={loadingFamilles || categoriesList.length === 0}
+                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
+                  >
+                    {categoriesList.length === 0 ? (
+                      <option value="">{loadingFamilles ? 'Chargement...' : 'Aucune catégorie trouvée'}</option>
+                    ) : (
+                      categoriesList.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* SÉLECTION DE LA FAMILLE (FILTRÉE PAR CATÉGORIE) */}
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                    Famille *
+                  </label>
+                  <select
+                    value={prodFamilleId}
+                    onChange={(e) => setProdFamilleId(e.target.value)}
+                    disabled={loadingFamilles || availableFamilles.length === 0}
+                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
+                  >
+                    {availableFamilles.length === 0 ? (
+                      <option value="">Aucune famille disponible</option>
+                    ) : (
+                      availableFamilles.map((fam) => (
+                        <option key={fam.id} value={fam.id}>
+                          {fam.famille || 'Sans nom'}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {/* QUANTITÉ PRÉVUE */}
+                <div style={{ flex: 1, minWidth: '180px' }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                    Quantité prévue *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={prodQuantite}
+                    onChange={(e) => setProdQuantite(Number(e.target.value))}
+                    required
+                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={loading || !prodFamilleId}
+                style={{ alignSelf: 'flex-start', marginTop: 8 }}
+              >
+                {loading ? 'Ajout en cours...' : 'Ajouter à la production'}
+              </button>
+            </form>
           </div>
         )}
       </div>
