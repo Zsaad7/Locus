@@ -130,6 +130,14 @@ const DashSalarie: React.FC = () => {
     navigate('/production-view') // Changez cette URL par votre route réelle (ex: '/production-salarie')
   }
 
+ const handleGoToCaisse = () => {
+  navigate('/salarie/Caisse') // Ou '/salarie/caisse' selon votre App.tsx
+}
+
+  const handleGoToTemperature =() => {
+    navigate('/salarie/TMP') // Ou '/salarie/TMP' selon votre App.tsx
+  }
+
   const toggleAnswer = (taskId: string, value: Answer) => {
     setAnswers((prev) => ({
       ...prev,
@@ -273,7 +281,9 @@ const DashSalarie: React.FC = () => {
             marginBottom: 20 
           }}
         >
-          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>DLC</button>
+          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}
+            onClick={handleGoToTemperature}
+          >TMP</button>
           
           {/* BOUTON PO AVEC REDIRECTION */}
           <button 
@@ -284,7 +294,11 @@ const DashSalarie: React.FC = () => {
             PO
           </button>
           
-          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}>CAISSE</button>
+          <button className="btn-primary" style={{ flex: 1, minWidth: '120px' }}
+            onClick={handleGoToCaisse}
+          >
+          CAISSE
+          </button>
           <button 
             className="btn-primary" 
             style={{ flex: 1, minWidth: '120px' }}

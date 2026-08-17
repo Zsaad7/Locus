@@ -6,12 +6,13 @@ import Dashboard from './pages/Dashboard'
 import Tasks from './pages/Tasks'
 import ProductionPage from './pages/responsable/production/production'
 import ProductionSalarie from './pages/salarie/PO/production_salarie'
-import PertePage from './pages/responsable/perte/perte'
 import CreationPage from './pages/responsable/creation/creation_page'
 import TachesHistoriques from './pages/responsable/taches/taches_historiques'
 import ProtectedRoute from './components/ProtectedRoute'
 import Unauthorized from './pages/Unauthorized'
 import PlanningPage from './pages/responsable/planning/planning'
+import CaissePage from './pages/salarie/Caisse/caisse'
+import TemperaturePage from './pages/salarie/TMP/tmp'
 
 import Navbar from './components/Navbar'
 
@@ -37,6 +38,8 @@ const router = createBrowserRouter([
           { path: '/dashboard', element: <Dashboard /> },
           // Ajout de la route production-view accessible globalement une fois connecté
           { path: '/production-view', element: <ProductionSalarie /> },
+            { path: '/salarie/Caisse', element: <CaissePage /> },
+          {path: '/salarie/TMP', element: <TemperaturePage />},
           { path: '/', element: <Navigate to="/dashboard" replace /> },
         ],
       },
@@ -49,6 +52,7 @@ const router = createBrowserRouter([
         element: <Layout />,
         children: [
           // Vos routes spécifiques aux salariés si besoin
+          
         ],
       },
     ],
@@ -61,8 +65,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/responsable/production', element: <ProductionPage /> },
           { path: '/tasks', element: <Tasks /> },
-          { path: '/responsable/perte', element: <PertePage /> },
-          { path: '/responsable/creation/profile', element: <CreationPage /> },
+          { path: '/responsable/creation/creation_page', element: <CreationPage /> },
           { path: '/responsable/taches', element: <TachesHistoriques /> },
           { path: '/responsable/planning', element: <PlanningPage /> },
         ],

@@ -11,9 +11,8 @@ type NavLinkItem = {
 const navLinks: NavLinkItem[] = [
   { label: 'Tableau de bord', to: '/dashboard', roles: ['responsable'] },
   { label: 'Tâches', to: '/responsable/taches', roles: ['responsable'] },
-  { label: 'Production', to: '/responsable/production', roles: ['responsable'] },
-  { label: 'Pertes', to: '/responsable/perte', roles: ['responsable'] },
-  { label: 'Création', to: '/responsable/creation/profile', roles: ['responsable'] },
+  { label: 'PO/PE', to: '/responsable/production', roles: ['responsable'] },
+  { label: 'Création', to: '/responsable/creation/creation_page', roles: ['responsable'] },
   {label: 'Planning', to: '/responsable/planning', roles: ['responsable']},
 ]
 
@@ -83,9 +82,6 @@ const Navbar: React.FC = () => {
               )}
               {role === 'responsable' && (
                 <Link to="/responsable/production" className="profile-link" onClick={() => setOpen(false)}>Production</Link>
-              )}
-                {role === 'responsable' && (
-                <Link to="/responsable/perte" className="profile-link" onClick={() => setOpen(false)}>Pertes</Link>
               )}
               {role === 'responsable' && (
                 <Link to="/responsable/planning" className="profile-link" onClick={() => setOpen(false)}>Planning</Link>

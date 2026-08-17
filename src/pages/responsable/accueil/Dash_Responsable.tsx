@@ -164,7 +164,7 @@ const DashResponsable: React.FC = () => {
             </div>
           </div>
 
-          <div className="card info-card">
+          {/* <div className="card info-card">
             <div className="section-header">
               <h3 className="small">Pointage</h3>
               <button className="btn-primary compact-btn" onClick={toggleAttendance}>
@@ -190,7 +190,7 @@ const DashResponsable: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <div className="card info-card">
             <h3 className="small">Station</h3>
@@ -207,12 +207,12 @@ const DashResponsable: React.FC = () => {
 
           <div className="card info-card warnings-card">
             <div className="section-header">
-              <h3 className="small">Avertissements</h3>
+              <h3 className="small">Taches ecours</h3>
             </div>
             {warnings.length === 0 ? (
               <div className="empty-warning">
                 <div className="empty-warning-icon">i</div>
-                <div className="small">Aucun avertissement</div>
+                <div className="small">Aucune taches en cours</div>
               </div>
             ) : (
               warnings.map((w) => (
@@ -227,7 +227,7 @@ const DashResponsable: React.FC = () => {
           </div>
         </div>
 
-        <div className="tasks-area">
+        {/* <div className="tasks-area">
           <div className="card task-section">
             <h3 style={{ marginTop: 0 }}>Tâches Communes</h3>
             <div className="task-list">
@@ -278,7 +278,7 @@ const DashResponsable: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        </div> */}
 
        
       </div>

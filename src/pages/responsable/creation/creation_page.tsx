@@ -5,6 +5,9 @@ import { supabase } from '../../../lib/supabase'
 type Priority = 'Urgent' | 'High' | 'Medium' | 'Minor'
 type CreationMode = 'profile' | 'task' | 'product'
 type WorkShiftKey = 'matin' | 'apres-midi' | 'nuit'
+export type DLCEnum = 'J' | 'J+1' | 'J+2' | 'J+3' | 'J+4' | 'J+5' | 'J+6' | 'J+7'
+
+const dlcOptions: DLCEnum[] = ['J', 'J+1', 'J+2', 'J+3', 'J+4', 'J+5', 'J+6', 'J+7']
 
 // Type pour les catégories et familles depuis BDD
 type FamilleProduit = {
@@ -13,12 +16,13 @@ type FamilleProduit = {
   categorie?: string
 }
 
-// TYPE CORRIGÉ : Retrait de user_id et station_id
+// TYPE CORRIGÉ : Retrait de user_id et station_id + Ajout du champ dlc
 type ProductionEntry = {
   id?: string
   label: string
   quantity: number
   famille_id: string
+  dlc: DLCEnum
   created_at?: string
 }
 
@@ -65,6 +69,7 @@ const CreationPage: React.FC = () => {
   const [prodCategorie, setProdCategorie] = useState('')
   const [prodFamilleId, setProdFamilleId] = useState<string>('')
   const [prodQuantite, setProdQuantite] = useState<number>(10)
+  const [prodDlc, setProdDlc] = useState<DLCEnum>('J')
   const [prodShift, setProdShift] = useState<WorkShiftKey>('matin')
 
   // DONNÉES CATÉGORIES & FAMILLES (DEPUIS BDD famille_produits)
@@ -312,7 +317,7 @@ const CreationPage: React.FC = () => {
     }
   }
 
-  // SOUMISSION PRODUIT À PRODUIRE (ÉCRITURE DANS TABLE PRODUCTION)
+  // SOUMISSION PRODUIT À PRODUIRE (ÉCRITURE DANS TABLE PRODUCTION AVEC DLC ENUM)
   const handleCreateProduction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!prodProduit.trim()) {
@@ -327,11 +332,11 @@ const CreationPage: React.FC = () => {
     setLoading(true)
     setMessage(null)
 
-    // CORRIGÉ : Retrait de `user_id` qui n'existe pas dans la table `production`
     const newProduction: ProductionEntry = {
       label: prodProduit.trim(),
       quantity: Number(prodQuantite),
       famille_id: prodFamilleId,
+      dlc: prodDlc,
     }
 
     try {
@@ -342,6 +347,7 @@ const CreationPage: React.FC = () => {
       setMessage({ type: 'success', text: `Produit "${prodProduit}" ajouté à la production avec succès !` })
       setProdProduit('')
       setProdQuantite(10)
+      setProdDlc('J')
     } catch (err: any) {
       console.error('Erreur création production:', err)
       setMessage({
@@ -449,7 +455,7 @@ const CreationPage: React.FC = () => {
               }}
               style={{ accentColor: '#2563EB', cursor: 'pointer' }}
             />
-            Ajouter un Produit à Produire
+            Ajouter un Produit 
           </label>
         </div>
 
@@ -699,12 +705,12 @@ const CreationPage: React.FC = () => {
           </div>
         )}
 
-        {/* 3. CRÉATION D'UN PRODUIT À PRODUIRE (TABLE PRODUCTION) */}
+        {/* 3. CRÉATION D'UN PRODUIT À PRODUIRE (TABLE PRODUCTION AVEC COMBOBOX DLC) */}
         {mode === 'product' && (
           <div className="card">
-            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Ajouter un produit à produire</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Ajouter un produit</h3>
             <p style={{ marginTop: 0, marginBottom: 16, color: '#64748B', fontSize: 14 }}>
-              Planifiez la fabrication d'un produit. Les familles sont extraites directement de la base.
+              Planifiez la fabrication d'un produit. Les familles et les DLC sont extraites directement de la base.
             </p>
 
             <form onSubmit={handleCreateProduction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -784,6 +790,24 @@ const CreationPage: React.FC = () => {
                     required
                     style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
                   />
+                </div>
+
+                {/* COMBOBOX DLC (dlc_enum) */}
+                <div style={{ flex: 1, minWidth: '180px' }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                    DLC *
+                  </label>
+                  <select
+                    value={prodDlc}
+                    onChange={(e) => setProdDlc(e.target.value as DLCEnum)}
+                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #CBD5E1' }}
+                  >
+                    {dlcOptions.map((dlcVal) => (
+                      <option key={dlcVal} value={dlcVal}>
+                        {dlcVal}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

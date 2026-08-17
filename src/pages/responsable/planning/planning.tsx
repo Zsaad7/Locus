@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import * as XLSX from 'xlsx'
-import { useAuth } from '../../../context/AuthContext' // Ajustez le chemin
+import { useAuth } from '../../../context/AuthContext' // Ajustez le chemin si nécessaire
 
 // --- TYPES ---
 type ViewMode = 'month' | 'week' | 'day'
@@ -17,8 +17,8 @@ type Shift = {
   id: string
   employee_id: string
   date: string // YYYY-MM-DD
-  start_time: string // HH:mm
-  end_time: string // HH:mm
+  start_time: string // HH:mm:ss ou HH:mm
+  end_time: string // HH:mm:ss ou HH:mm
   type: 'Matin' | 'Aprem' | 'Nuit' | 'Repos' | 'Congé'
   break_minutes?: number
 }
@@ -56,12 +56,12 @@ const PlanningPage: React.FC = () => {
   const { session, loading: authLoading } = useAuth()
 
   const [viewMode, setViewMode] = useState<ViewMode>('week')
-  const [currentDate, setCurrentDate] = useState<Date>(new Date('2026-08-10'))
+  const [currentDate, setCurrentDate] = useState<Date>(new Date())
   
   const [employees, setEmployees] = useState<Employee[]>([])
   const [shifts, setShifts] = useState<Shift[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
+  const [, setLoading] = useState<boolean>(true)
+  const [, setError] = useState<string | null>(null)
 
   // Édition de créneau
   const [selectedCell, setSelectedCell] = useState<{ employeeId: string; date: string; existingShift?: Shift } | null>(null)
@@ -169,8 +169,8 @@ const PlanningPage: React.FC = () => {
     
     if (existing) {
       setModalShiftType(existing.type)
-      setModalStart(existing.start_time.substring(0, 5))
-      setModalEnd(existing.end_time.substring(0, 5))
+      setModalStart(existing.start_time ? existing.start_time.substring(0, 5) : '08:00')
+      setModalEnd(existing.end_time ? existing.end_time.substring(0, 5) : '16:00')
       setModalBreak(existing.break_minutes || 0)
     } else {
       setModalShiftType('Matin')
@@ -197,26 +197,40 @@ const PlanningPage: React.FC = () => {
       }
 
       if (selectedCell.existingShift) {
+        // Modification
         const res = await axios.patch(
           `${supabaseUrl}/rest/v1/shifts?id=eq.${selectedCell.existingShift.id}`,
           payload,
           { headers }
         )
-        const updatedShift = res.data[0]
-        setShifts((prev) => prev.map((s) => (s.id === updatedShift.id ? updatedShift : s)))
+        
+        // Validation sécurisée du retour de l'API Supabase REST
+        const updatedShift = Array.isArray(res.data) && res.data.length > 0
+          ? res.data[0]
+          : { ...selectedCell.existingShift, ...payload }
+
+        setShifts((prev) => prev.map((s) => (s.id === selectedCell.existingShift!.id ? updatedShift : s)))
       } else {
+        // Création
         const res = await axios.post(
           `${supabaseUrl}/rest/v1/shifts`,
           payload,
           { headers }
         )
-        setShifts((prev) => [...prev, res.data[0]])
+
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setShifts((prev) => [...prev, res.data[0]])
+        } else {
+          // Si Supabase ne renvoie pas l'enregistrement créé, re-fetch pour resynchroniser
+          await fetchData()
+        }
       }
 
       setSelectedCell(null)
     } catch (err: any) {
-      console.error("Erreur enregistrement shift :", err)
-      alert("Impossible d'enregistrer le créneau.")
+      console.error("Erreur Supabase lors de la sauvegarde :", err?.response?.data || err?.message || err)
+      const errorMsg = err?.response?.data?.message || err?.message || "Impossible d'enregistrer le créneau."
+      alert(`Erreur : ${errorMsg}`)
     }
   }
 
@@ -285,7 +299,6 @@ const PlanningPage: React.FC = () => {
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       )
 
-      // Appel de votre Edge Function Supabase ou backend d'envoi d'email
       await axios.post(
         `${supabaseUrl}/functions/v1/send-planning-email`,
         {
@@ -297,12 +310,11 @@ const PlanningPage: React.FC = () => {
         { headers: getHeaders() }
       )
 
-      alert(' Planning envoyé avec succès par e-mail !')
+      alert('Planning envoyé avec succès par e-mail !')
       setIsEmailModalOpen(false)
       setRecipientEmail('')
     } catch (err) {
       console.error("Erreur d'envoi d'email :", err)
-      // Si la fonction n'est pas encore déployée, on propose un fallback téléchargement
       alert("L'envoi automatique a échoué. Téléchargement du fichier Excel à la place.")
       handleDownloadExcel()
     } finally {
@@ -337,7 +349,6 @@ const PlanningPage: React.FC = () => {
         {/* BOUTONS ACTIONS (EXCEL / MAIL & NAV) */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           
-          {/* BOUTON EXCEL / EMAIL DEMANDÉ */}
           <button
             type="button"
             onClick={() => setIsEmailModalOpen(true)}
